@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KSE Image Gallery · TX16S MK3</title><link rel="stylesheet" href="gallery.css"></head>
+<body><header class="mast"><div class="wrap"><a class="brand" href="index.html"><b>KSE</b> Image Gallery</a><a href="#install">Install guide</a></div></header>
+<main class="wrap">
+<section class="hero"><div class="hero-copy"><p class="eyebrow">RadioMaster · KSE Touch</p>
+<h1>TX16S MK3<br> image gallery</h1><p>Browse $total wallpapers, model images and startup screens. See each one on the KSE Touch dashboard before you download.</p>
+<a class="btn" href="#collection">Browse collection <span aria-hidden="true">↓</span></a> <a class="all-pack" href="packs/complete.zip" download>Download all $total images ↓</a></div>
+<a class="feature" href="$feature_page"><img src="$feature_image" alt="Preview Tangerine Cobalt Solar Tide on KSE Touch"><span>Featured wallpaper <b>Tangerine Cobalt Solar Tide ↗</b></span></a></section>
+<div id="collection" class="browse"><nav aria-label="Collections"><a href="#wallpapers">Wallpapers</a><a href="#model-images">Model images</a><a href="#startup-screens">Startup screens</a></nav><label class="search"><span>Search</span><input id="search" type="search" placeholder="Model or design" autocomplete="off"></label></div>
+<p id="matches" aria-live="polite" hidden></p>
+$sections
+<section class="install" id="install"><p class="eyebrow">TX16S MK3</p><h2>On your radio</h2>
+<div class="install-grid"><div><h3>Wallpapers</h3><p>Copy to <code>/IMAGES/Wallpapers/</code>. Open <b>Appearance → Wallpaper &amp; Startup</b> and apply the background. Select <b>Transparent</b> in Dashboard options and turn off shared theme matching.</p></div>
+<div><h3>Model images</h3><p>Copy the full-size PNG to <code>/IMAGES/</code>. KSE Touch looks up the connected aircraft by name. Keep its filename matched to that aircraft. A smaller thumbnail is also available for the EdgeTX model picker.</p></div>
+<div><h3>Startup screens</h3><p>Copy to <code>/IMAGES/Wallpapers/</code>. Under <b>Appearance → Wallpaper &amp; Startup</b>, select the startup image and apply it for the next power-on.</p></div></div></section>
+</main><footer class="wrap">KSE Touch · Radio graphics by Kyle Stacy</footer>
+<script>
+const search = document.getElementById('search');
+search.addEventListener('input', () => {
+  const query = search.value.trim().toLowerCase();
+  let hits = 0;
+  for (const section of document.querySelectorAll('[data-collection]')) {
+    let count = 0;
+    for (const card of section.querySelectorAll('.card')) {
+      card.hidden = !card.dataset.search.includes(query);
+      if (!card.hidden) count++;
+    }
+    section.hidden = count === 0 && !!query;
+    hits += count;
+  }
+  const result = document.getElementById('matches');
+  result.hidden = !query;
+  result.textContent = hits ? hits + (hits === 1 ? ' image found' : ' images found') : 'No images match your search.';
+});
+for (const link of document.querySelectorAll('.browse nav a')) link.addEventListener('click', () => {
+  search.value = ''; search.dispatchEvent(new Event('input'));
+});
+</script></body></html>
