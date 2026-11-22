@@ -16,9 +16,11 @@ For transparent tiles on the radio, set **Dashboard → Options → Dashboard th
 
 [KSE Touch guide](https://github.com/kylestacy2/KSE-Touch#appearance) · [EdgeTX theme files](https://github.com/EdgeTX/themes/blob/main/structure.md) · [EdgeTX model images](https://manual.edgetx.org/color-radios/radio-settings/storage)
 
-## Add artwork
+## Sync artwork
 
-Put a PNG directly in `model-images/`, `wallpapers/` or `startup-screens/`. Wallpapers and splash screens use 800 × 480. Keep the model PNG at its original dimensions with its original transparency. To supply a display title or a short EdgeTX thumbnail filename, add a row to `catalog.csv`. Otherwise the gallery uses the filename to generate them.
+Maintain the artwork in the sibling `Flying/KSE Images` folder. Its `Model Images`, `Wallpapers` and `Splash` subfolders map to `model-images/`, `wallpapers/` and `startup-screens/`. From the gallery checkout, run `python3 sync_images.py`, then `python3 build_gallery.py`. Commit the changes, including deletions, and push to `main` to publish. Each sync mirrors PNG filenames and original bytes and removes catalog rows for deleted files. An empty collection clears that category. A missing master subfolder stops the sync.
+
+The build preserves model PNGs and fits wallpaper and startup downloads to 800 × 480. The complete SD pack stores identical files with the same installation path once. Different images with the same installation path get an `alt-` prefix for the additional copy. To supply a display title or a short EdgeTX thumbnail filename, add a row to `catalog.csv`.
 
 ## Preview locally
 
