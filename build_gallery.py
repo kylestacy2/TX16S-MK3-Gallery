@@ -1,5 +1,6 @@
 """Build the downloadable gallery from the three PNG folders."""
 import csv
+import filecmp
 import hashlib
 import html
 import re
@@ -92,12 +93,14 @@ def image_card(path, title, size):
 def write_detail(out, path, size, title, category, pack_label, thumb, catalog, detail_template):
     group = path.parent.name
     is_model = group == 'model-images'
-    other = DEFAULT_WALLPAPER if is_model else DEFAULT_MODEL
+    preferred = DEFAULT_WALLPAPER if is_model else DEFAULT_MODEL
+    candidates = [p.relative_to(ROOT) for p in png_files(ROOT / preferred.parent)]
+    other = preferred if preferred in candidates else next(iter(candidates), None)
+    model = path if is_model else other
     def asset_url(asset):
-        return '../../' + quote(asset.as_posix())
+        return '../../' + quote(asset.as_posix()) if asset else ''
     options = []
-    for candidate in png_files(ROOT / other.parent):
-        candidate = candidate.relative_to(ROOT)
+    for candidate in candidates:
         selected = ' selected' if candidate == other else ''
         options.append(f'<option data-model-name="{html.escape(candidate.stem)}" value="{asset_url(candidate)}"{selected}>{html.escape(name_for(candidate, catalog))}</option>')
     compact = ''
@@ -107,16 +110,23 @@ def write_detail(out, path, size, title, category, pack_label, thumb, catalog, d
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(detail_template.substitute(
         title=html.escape(title), group=group, category=category, category_lower=category.lower(),
-        wallpaper=asset_url(other if is_model else path), model=asset_url(path if is_model else other),
-        model_name=html.escape((path if is_model else other).stem), tiles=tile_markup(),
+        wallpaper_href=href_attr(asset_url(other if is_model else path)), model_href=href_attr(asset_url(model)),
+        model_name=html.escape(model.stem) if model else '', tiles=tile_markup(),
+        pair_hidden='' if candidates else 'hidden',
         pair_label='Preview wallpaper' if is_model else 'Preview model', pair_target='wallpaper' if is_model else 'model-image',
         options=''.join(options), switches=MODE_SWITCH if group == 'startup-screens' else '',
         dimensions=f'{size[0]} × {size[1]}', filename=html.escape(path.name), image=asset_url(path),
         install=INSTALL[group], pack_label=pack_label, compact=compact), encoding='utf-8')
 
 
+def href_attr(url):
+    return f'href="{url}"' if url else ''
+
+
 def png_files(folder):
-    return sorted((p for p in folder.iterdir() if p.suffix.lower() == '.png' and not p.name.startswith('.')),
+    if not folder.exists():
+        return []
+    return sorted((p for p in folder.iterdir() if p.suffix.lower() == '.png' and not p.name.startswith('.') and p.is_file()),
                   key=lambda p: p.name.casefold())
 
 
@@ -132,12 +142,17 @@ def build_group(out, group, heading, sd_folder, pack_label, catalog, detail_temp
             relative = source.relative_to(ROOT)
             dest = out / relative
             dest.parent.mkdir(exist_ok=True)
-            shutil.copyfile(source, dest)
             with Image.open(source) as im:
                 im.load()
+                if im.format != 'PNG':
+                    raise ValueError(f'Expected a PNG: {relative}')
                 size = im.size
-                if im.format != 'PNG' or (group != 'model-images' and size != (800, 480)):
-                    raise ValueError(f'Check PNG type and screen dimensions: {relative}')
+                if group != 'model-images' and size != (800, 480):
+                    size = (800, 480)
+                    mode = 'RGBA' if im.has_transparency_data else 'RGB'
+                    ImageOps.fit(im.convert(mode), size, method=Image.Resampling.LANCZOS).save(dest)
+                else:
+                    shutil.copyfile(source, dest)
                 info = catalog.get(relative.as_posix(), {})
                 title = info.get('title') or source.stem.replace('_', ' ')
                 thumb = None
@@ -181,13 +196,33 @@ def main():
             sections.append(section)
             total += count
         with ZipFile(out / 'packs/complete.zip', 'w') as combined:
+            packed = {}
+            reserved = {f'{sd_folder}/{p.name}'.casefold()
+                        for group, _, sd_folder, _ in COLLECTIONS for p in png_files(out / group)}
             for folder, _, sd_folder, _ in COLLECTIONS:
-                for asset in png_files(ROOT / folder):
-                    combined.write(asset, f'{sd_folder}/{asset.name}')
+                for asset in png_files(out / folder):
+                    name = asset.name
+                    member = f'{sd_folder}/{name}'
+                    if member.casefold() in packed:
+                        if filecmp.cmp(asset, packed[member.casefold()], shallow=False):
+                            continue
+                        while member.casefold() in reserved:
+                            name = 'alt-' + name
+                            member = f'{sd_folder}/{name}'
+                    combined.write(asset, member)
+                    packed[member.casefold()] = asset
+                    reserved.add(member.casefold())
+        wallpapers = [p.relative_to(out) for p in png_files(out / 'wallpapers')]
+        feature = FEATURE if FEATURE in wallpapers else next(iter(wallpapers), None)
+        featured = ''
+        if feature:
+            title = html.escape(name_for(feature, catalog))
+            featured = (f'<a class="feature" href="{quote(preview_path(feature).as_posix())}">'
+                        f'<img src="{quote(feature.as_posix())}" alt="Preview {title} on KSE Touch">'
+                        f'<span>Featured wallpaper <b>{title} ↗</b></span></a>')
         home = template.substitute(
             sections='\n'.join(sections), total=total,
-            feature_page=quote(preview_path(FEATURE).as_posix()),
-            feature_image=quote(FEATURE.as_posix()),
+            featured=featured,
         )
         (out / 'index.html').write_text(home, encoding='utf-8')
         target = ROOT / '_site'
