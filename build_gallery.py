@@ -46,6 +46,11 @@ def preview_path(path):
     return Path('preview') / path.parent / (path.stem + '.html')
 
 
+def download_path(path):
+    # Finder allows color separators that FAT-formatted radio cards cannot store.
+    return path.with_name(path.name.replace(':', '-'))
+
+
 def name_for(path, catalog):
     return catalog.get(path.as_posix(), {}).get('title') or path.stem.replace('_', ' ')
 
@@ -98,11 +103,11 @@ def write_detail(out, path, size, title, category, pack_label, thumb, catalog, d
     other = preferred if preferred in candidates else next(iter(candidates), None)
     model = path if is_model else other
     def asset_url(asset):
-        return '../../' + quote(asset.as_posix()) if asset else ''
+        return '../../' + quote(download_path(asset).as_posix()) if asset else ''
     options = []
     for candidate in candidates:
         selected = ' selected' if candidate == other else ''
-        options.append(f'<option data-model-name="{html.escape(candidate.stem)}" value="{asset_url(candidate)}"{selected}>{html.escape(name_for(candidate, catalog))}</option>')
+        options.append(f'<option data-model-name="{html.escape(download_path(candidate).stem)}" value="{asset_url(candidate)}"{selected}>{html.escape(name_for(candidate, catalog))}</option>')
     compact = ''
     if thumb:
         compact = f'<details><summary>EdgeTX model picker</summary><p class="note">192 × 114 PNG with a short filename.</p><a href="../../{quote(thumb)}" download>Download thumbnail ↓</a></details>'
@@ -111,7 +116,7 @@ def write_detail(out, path, size, title, category, pack_label, thumb, catalog, d
     output.write_text(detail_template.substitute(
         title=html.escape(title), group=group, category=category, category_lower=category.lower(),
         wallpaper_href=href_attr(asset_url(other if is_model else path)), model_href=href_attr(asset_url(model)),
-        model_name=html.escape(model.stem) if model else '', tiles=tile_markup(),
+        model_name=html.escape(download_path(model).stem) if model else '', tiles=tile_markup(),
         pair_hidden='' if candidates else 'hidden',
         pair_label='Preview wallpaper' if is_model else 'Preview model', pair_target='wallpaper' if is_model else 'model-image',
         options=''.join(options), switches=MODE_SWITCH if group == 'startup-screens' else '',
@@ -140,7 +145,10 @@ def build_group(out, group, heading, sd_folder, pack_label, catalog, detail_temp
     with ZipFile(out / pack_path, 'w') as pack:
         for source in files:
             relative = source.relative_to(ROOT)
-            dest = out / relative
+            published = download_path(relative)
+            dest = out / published
+            if dest.exists():
+                raise ValueError(f'Multiple source files map to {published}')
             dest.parent.mkdir(exist_ok=True)
             with Image.open(source) as im:
                 im.load()
@@ -169,8 +177,8 @@ def build_group(out, group, heading, sd_folder, pack_label, catalog, detail_temp
                     canvas.paste(art, ((192 - art.width) // 2, (114 - art.height) // 2))
                     canvas.save(radio_path)
             pack.write(dest, f'{sd_folder}/{dest.name}')
-            write_detail(out, relative, size, title, heading, pack_label, thumb, catalog, detail_template)
-            cards.append(image_card(relative, title, size))
+            write_detail(out, published, size, title, heading, pack_label, thumb, catalog, detail_template)
+            cards.append(image_card(published, title, size))
     count = len(cards)
     link = f'<a class="pack" href="{pack_path}" download>{pack_label} ↓</a>' if count else ''
     section = f'''<section id="{group}" class="collection" data-collection>
